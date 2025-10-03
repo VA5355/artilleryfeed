@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "mock sse for true-data ",
   "main": "server.js",
+  "type": "module" ,
   "scripts": {
   	 "start": "node mock-wss-server-sequential.js",
     "test": "echo \"Error: no test specified\" && exit 1"
