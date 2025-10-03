@@ -1,13 +1,27 @@
 const fs = require("fs");
 const https = require("https");
 const WebSocket = require("ws");
+import http from "http";
+import { WebSocketServer } from "ws";
+import express from "express";
 
+
+const app = express();
+
+// normal REST route (Render needs this for health check)
+app.get("/", (req, res) => {
+  res.send("WebSocket server is up ✅");
+});
+
+
+// Create HTTP server
+const server = http.createServer(app);
 // Load self-signed certificate
-const server = https.createServer({
+/*const server = https.createServer({
   cert: fs.readFileSync("./ssl.crt/server.crt"),
   key: fs.readFileSync("./ssl.key/server.key")
 });
-
+*/
 function getTuesdaysOfMonth(year, monthIndex) {
   // monthIndex: 0 = January, 9 = October
   const tuesdays = [];
@@ -541,7 +555,16 @@ function sendDelayedTrades(contracts, index = 0) {
   });
 });
 
+// Use Render’s PORT (default to 3000 locally)
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`✅ WebSocket endpoint: wss://<your-app>.onrender.com`);
+});
+
+/*
 // Start HTTPS server
 server.listen(8443, () => {
   console.log("✅ Mock WSS server running at wss://localhost:8443");
 });
+*/
