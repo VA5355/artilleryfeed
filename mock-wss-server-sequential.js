@@ -3,7 +3,7 @@
 //const WebSocket = require("ws");
 import fs from "fs";
 import https from "https";
-
+import { WebSocket } from "ws";
 import http from "http";
 import { WebSocketServer } from "ws";
 import express from "express";
