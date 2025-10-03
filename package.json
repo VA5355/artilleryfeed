@@ -1,0 +1,22 @@
+{
+  "name": "artillery",
+  "version": "1.0.0",
+  "description": "mock sse for true-data ",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "VA"
+  ],
+  "author": "Vinayak Anvekar",
+  "license": "ISC",
+  "devDependencies": {
+    "mocksse": "^1.0.4"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "https": "^1.0.0",
+    "ws": "^8.18.3"
+  }
+}
