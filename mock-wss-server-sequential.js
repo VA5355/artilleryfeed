@@ -1,6 +1,9 @@
-const fs = require("fs");
-const https = require("https");
-const WebSocket = require("ws");
+//const fs = require("fs");
+//const https = require("https");
+//const WebSocket = require("ws");
+import fs from "fs";
+import https from "https";
+
 import http from "http";
 import { WebSocketServer } from "ws";
 import express from "express";
