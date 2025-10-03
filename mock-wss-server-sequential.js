@@ -260,7 +260,7 @@ console.log(`total_array_expiries: ${Array.isArray(total_array_expiries)} total:
 
 
 // Create WebSocket server over HTTPS
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocketServer({ server });// new WebSocket.Server({ server });
  let  matching_contracts = [];
 wss.on("connection", (ws) => {
   console.log("[WSS] New client connected.");
