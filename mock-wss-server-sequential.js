@@ -390,8 +390,8 @@ function sendDelayedTrades(contracts, index = 0) {
       console.log(`Searching for ${symbolSet.size} unique symbols...`);
 
      // 2. Use flatMap to iterate through the nested structure and create a single flat array.
-       matching_contracts = total_array_expiries_truedata.flatMap(expiryGroup => {
-          // expiryGroup is in the format: ["expiryDate", [contract_objects...]]
+       matching_contracts =  total_array_expiries.flatMap(expiryGroup => {  // total_array_expiries_truedata.flatMap(expiryGroup => {
+          // expiryGroup is in the format: ["expiryDate", [contract_objects...]] // consuming from self not truedata 
           const optionsArray = expiryGroup[1];
           
           // Filter the optionsArray: keep only elements where the symbol is in our Set.
