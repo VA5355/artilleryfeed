@@ -194,7 +194,7 @@ function generateTrades(
  */
 function generateTuesdayTrades(
   tuesdayObjects,
-  baseStrike = 24100,
+  baseStrike = 26100, // this is with relation to truedata actuall values ...
   steps = 4,
   stepSize = 100,
   weeklyInterestRate = 15
