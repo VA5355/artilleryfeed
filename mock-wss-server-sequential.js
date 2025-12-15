@@ -148,7 +148,7 @@ function random9Digit() {
  */
 function generateTrades(
   expiries,
-  baseStrike = 24100,
+  baseStrike = 26100,      // this needs to be categorised as configuration object or setting , others are at line 285 1276 
   steps = 4,
   stepSize = 100,
   weeklyInterestRate = 15
