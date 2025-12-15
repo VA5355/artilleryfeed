@@ -149,7 +149,7 @@ function random9Digit() {
 function generateTrades(
   expiries,
   baseStrike = 25600, //26100,      // this needs to be categorised as configuration object or setting , others are at line 285 1276 
-  steps = 4,
+  steps = 7,   // this is for 7 strike prices lsiting 
   stepSize = 100,
   weeklyInterestRate = 15
 ) {
@@ -195,7 +195,7 @@ function generateTrades(
 function generateTuesdayTrades(
   tuesdayObjects,
   baseStrike =  25600 , // 26100, // this is with relation to truedata actuall values ...
-  steps = 4,
+  steps = 7, // this is for 7 strike prices lsiting 
   stepSize = 100,
   weeklyInterestRate = 15
 ) {
