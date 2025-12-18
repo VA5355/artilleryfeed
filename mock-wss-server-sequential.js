@@ -53,7 +53,7 @@ const monthProperCodes = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
 ];
-
+ const baseGlobalStrike = 25600;
 /**
  * Generate short expiry code from a Date
  * Example: Date(2025-10-07) → "25OCT07"
@@ -177,6 +177,13 @@ function generateTrades(
         expiry: exp.shortKey
       });
     }
+    // add the NIFTY-50 SPOT TRADE 
+     trades.push({
+        id: String(random9Digit()),
+        symbol: `NIFTY-50`,
+        k: baseStrike + Math.floor(Math.random() * (weeklyInterestRate/10)) ,
+        expiry:  `NIFTY-50`
+      });
     total_array_expiries.push([exp.shortKey ,trades ])
     result[exp.shortKey] = trades;
   });
@@ -223,6 +230,14 @@ function generateTuesdayTrades(
         expiry: exp.date
       });
     }
+      // add the NIFTY-50 SPOT TRADE 
+     trades.push({
+        id: String(random9Digit()),
+        symbol: `NIFTY-50`,
+        k: baseStrike+  Math.floor(Math.random() * (weeklyInterestRate/10)) ,
+        expiry:  `NIFTY-50`
+      });
+
     total_array_expiries_truedata.push([exp.date ,trades ])
     result[exp.date] = trades;
   });
@@ -257,6 +272,16 @@ console.log(`total_array_expiries_truedata: ----------`);
 console.log(JSON.stringify(total_array_expiries_truedata));
 //console.log(`current_month_nifty_expiries: ${Array.isArray(current_month_nifty_expiries)} total: ${current_month_nifty_expiries.length}`);
 console.log(`total_array_expiries: ${Array.isArray(total_array_expiries)} total: ${total_array_expiries.length}`);
+
+// Start HTTPS server8443
+// 8888 for the fyers.web.in/scalper_terminal 
+let port = 8443;
+
+// Create an HTTPS server
+let server  =    https.createServer(options, app).listen(port, () => {
+        console.log(`HTTPS server running on port ${port}`);
+        console.log(`✅ Mock WSS server running at wss://localhost:${port}`);
+    });
 
 
 // Create WebSocket server over HTTPS
@@ -436,6 +461,26 @@ function sendDelayedTrades(contracts, index = 0) {
         let syml =   Array.from(ws.subscribedSymbols.entries());
          console.log(` Initial trades first array :`, JSON.stringify(initialtrade));
         // Deduplicate using Set
+        // add the NIFTY-50 SPOT TRADE ---- 
+        let currentSpot =  baseGlobalStrike;
+         const nifty50SpotTrade  =  [
+          String(random9Digit()),
+            new Date().toISOString(),
+            (currentSpot + Math.random() * 1).toFixed(2),
+            "0","0","0",
+           (currentSpot + Math.random() * 2).toFixed(2),
+            (currentSpot + Math.random() * 3).toFixed(2),
+      (currentSpot + Math.random() * 1).toFixed(2),
+      (currentSpot + Math.random() * 1.5).toFixed(2),
+      Math.floor(1000000 + Math.random() * 9000000) + "",
+      Math.floor(1000000 + Math.random() * 9000000) + "",
+      "0","0","0","0","0"
+    ];
+        const  nifty50 = ["NIFTY-50" , ...nifty50SpotTrade ]; 
+      //      ["NIFTY-50","753989892","2025-12-16T10:12:41.627Z","141.23","0","0","0","108.92","111.05","163.63","143.79","7019403","8814904","0","0","0","0","0"]
+          initialtrade.push(nifty50);
+
+
         const uniqueMerged = [...new Set(initialtrade)];
           console.log(` Initial trades :`, JSON.stringify(uniqueMerged));
          console.log("[WSS] Subscribed & matched contracts:", ws.matching_contracts.length);
@@ -491,7 +536,27 @@ function sendDelayedTrades(contracts, index = 0) {
  
   const trades_k_const = [
 
-        { id: "302418012", symbol: "NIFTY25D1624100CE", k: 180 },
+      /*  { id: "302418012", symbol: "NIFTY25O0724100CE", k: 180 },
+    { id: "302418013", symbol: "NIFTY25O0724100PE", k: 40 },
+    { id: "302418014", symbol: "NIFTY25O0724200PE", k: 360 },
+    { id: "302418015", symbol: "NIFTY25O0724200CE", k: 60 },
+
+    { id: "302418016", symbol: "NIFTY25O0724300CE", k: 180 },
+    { id: "302418017", symbol: "NIFTY25O0724300PE", k: 40 },
+    { id: "302418018", symbol: "NIFTY25O0724400PE", k: 360 },
+    { id: "302418019", symbol: "NIFTY25O0724400CE", k: 60 },
+
+     { id: "302418020", symbol: "NIFTY25O0724500CE", k: 180 },
+    { id: "302418021", symbol: "NIFTY25O0724500PE", k: 40 },
+    { id: "302418022", symbol: "NIFTY25O0724600PE", k: 360 },
+    { id: "302418023", symbol: "NIFTY25O0724600CE", k: 60 },
+
+    { id: "302418032", symbol: "NIFTY25O0724700CE", k: 180 },
+    { id: "302418025", symbol: "NIFTY25O0724700PE", k: 40 },
+    { id: "302418024", symbol: "NIFTY25O0724800PE", k: 360 },
+    { id: "302418029", symbol: "NIFTY25O0724800CE", k: 60 } */
+     { id: "302418011", symbol: "NIFTY-50", k: 2 },
+      { id: "302418012", symbol: "NIFTY25D1624100CE", k: 180 },
     { id: "302518013", symbol: "NIFTY25D1625100PE", k: 40 },
     { id: "302418014", symbol: "NIFTY25D1625200PE", k: 360 },
     { id: "302418015", symbol: "NIFTY25D1625200CE", k: 60 },
@@ -553,7 +618,39 @@ function sendDelayedTrades(contracts, index = 0) {
           ws.send(JSON.stringify({ trade }));
           console.log(`[WSS] Sent trade for ${symbol}:`, trade[2]);
         }
-      });
+      }
+      );
+        // send the NIFTY-50 default trade 
+         /* const trade =   [
+              id,
+              new Date().toISOString(),
+              (k_const + Math.random() * 70).toFixed(2),
+              "0","0","0",
+              (k_const + Math.random() * 70).toFixed(2),
+              (k_const + Math.random() * 70).toFixed(2),
+              (k_const + Math.random() * 70).toFixed(2),
+              (k_const + Math.random() * 70).toFixed(2),
+              Math.floor(1000000 + Math.random() * 9000000) + "",
+              Math.floor(1000000 + Math.random() * 9000000) + "",
+              "0","0","0","0","0"
+          ]; */
+           let currentSpot =  baseGlobalStrike; 
+           // variable name must be trade else client sees nifty50SpotTrade
+         const trade  =  [
+                String(random9Digit()),
+                  new Date().toISOString(),
+                  (currentSpot + Math.random() * 1).toFixed(2),
+                  "0","0","0",
+                (currentSpot + Math.random() * 2).toFixed(2),
+                  (currentSpot + Math.random() * 3).toFixed(2),
+            (currentSpot + Math.random() * 1).toFixed(2),
+            (currentSpot + Math.random() * 1.5).toFixed(2),
+            Math.floor(1000000 + Math.random() * 9000000) + "",
+            Math.floor(1000000 + Math.random() * 9000000) + "",
+            "0","0","0","0","0"
+           ];
+          ws.send(JSON.stringify({ trade }));
+
     } else {
       console.log("[WSS] No matching records for this client");
     }
