@@ -278,11 +278,11 @@ console.log(`total_array_expiries: ${Array.isArray(total_array_expiries)} total:
 let port = 8443;
 
 // Create an HTTPS server
-let server  =    https.createServer(options, app).listen(port, () => {
+/*let server  =    https.createServer(options, app).listen(port, () => {
         console.log(`HTTPS server running on port ${port}`);
         console.log(`✅ Mock WSS server running at wss://localhost:${port}`);
     });
-
+*/
 
 // Create WebSocket server over HTTPS
 const wss = new WebSocketServer({ server });// new WebSocket.Server({ server });
