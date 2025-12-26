@@ -273,6 +273,157 @@ console.log(JSON.stringify(total_array_expiries_truedata));
 //console.log(`current_month_nifty_expiries: ${Array.isArray(current_month_nifty_expiries)} total: ${current_month_nifty_expiries.length}`);
 console.log(`total_array_expiries: ${Array.isArray(total_array_expiries)} total: ${total_array_expiries.length}`);
 
+function extractExpiryStrikeMap(dataEntries, isFyers) {
+  const map = {};
+
+  for (const [expiryKey, rows] of dataEntries) {
+    const strikes = new Set();
+
+    for (const row of rows) {
+      if (!row.symbol.startsWith("NIFTY")) continue;
+      if (!row.symbol.includes("CE") && !row.symbol.includes("PE")) continue;
+       let kq , kl = "";
+      // Extract strike
+      const strike = (isFyers ? ( kq = row.symbol.match(/NIFTY\d{2}D\d{2}(\d{5})/) ? row.symbol.match(/NIFTY\d{2}D\d{2}(\d{5})/)[1] : "" ) : 
+        ( kl = row.symbol.match(/NIFTY\d{6}(\d{5})/) ? row.symbol.match(/NIFTY\d{6}(\d{5})/)[1] : ""));
+
+      if (strike) strikes.add(strike);
+    }
+
+    if (strikes.size) {
+      map[expiryKey] = strikes;
+    }
+  }
+
+  return map;
+}
+const fyersStrikeMap = extractExpiryStrikeMap(
+  total_array_expiries,
+  true
+);
+
+const truedataStrikeMap = extractExpiryStrikeMap(
+  total_array_expiries_truedata,
+  false
+);
+
+
+
+
+const extractExpiryFromSymbol = (symbol) => {
+  // FYERS: NIFTY25D0225600CE → 25D02
+  const fyersMatch = symbol.match(/NIFTY(\d{2}D\d{2})/);
+  if (fyersMatch) return fyersMatch[1];
+
+  // TrueData: NIFTY25120225600CE → 251202
+  const truedataMatch = symbol.match(/NIFTY(\d{6})/);
+  if (truedataMatch) return truedataMatch[1];
+
+  return null;
+};
+
+let expiryKeyMap = {};
+
+Object.entries(total_array_expiries).forEach(([fyersKey, fyersArr]) => {
+  if (!fyersArr?.length) return;
+
+  const fyersSymbol = fyersArr[0].symbol;
+  const fyersExpiry = extractExpiryFromSymbol(fyersSymbol ? fyersSymbol : "");
+
+  Object.entries(total_array_expiries_truedata).forEach(
+    ([trueKey, trueArr]) => {
+      if (!trueArr?.length) return;
+
+      const trueSymbol = trueArr[0].symbol;
+      const trueExpiry = extractExpiryFromSymbol(trueSymbol ? trueSymbol : "" );
+
+      if (fyersExpiry && trueExpiry) {
+        // Match by calendar logic: YYMMDD vs YYDdd
+        // Example: 25D02 ↔ 251202
+        if (trueExpiry.startsWith(fyersExpiry.replace("D", ""))) {
+          expiryKeyMap[fyersExpiry] = trueExpiry;
+        }
+      }
+    }
+  );
+});
+console.log(" Using Regex fetched the keys from true_array_expiries and true_array_expiries_truedata  : symbol.match(/NIFTY(\d{2}D\d{2})/)  FYERS: NIFTY25D0225600CE → 25D02 and /NIFTY(\d{6})/ TrueData: NIFTY25120225600CE → 251202 ");
+let expiryKeyMapRegex = Object.assign( {} , expiryKeyMap) ;
+console.log(" calculated expiry "+JSON.stringify(expiryKeyMap))
+console.log(" Using just key matching and endwith (fyersExpiry.slice(-2) no regex most safe approach ")
+
+Object.values(total_array_expiries).forEach((fyersArr) => {
+  if (!fyersArr?.length) return;
+
+  const fyersExpiry = fyersArr[0].expiry;
+
+  Object.values(total_array_expiries_truedata).forEach((trueArr) => {
+    if (!trueArr?.length) return;
+
+    const trueExpiry = trueArr[0].expiry;
+
+    // Match by calendar day (02 → 02, 09 → 09 etc.)
+    if (trueExpiry !==undefined && trueExpiry !== null && trueExpiry.endsWith(fyersExpiry.slice(-2))) {
+      expiryKeyMap[fyersExpiry] = trueExpiry;
+    }
+  });
+});
+console.log(" calculated expiry slice approach "+JSON.stringify(expiryKeyMap))
+
+
+for (const fyersKey in fyersStrikeMap) {
+  for (const trueKey in truedataStrikeMap) {
+    const fyersStrikes = fyersStrikeMap[fyersKey];
+    const trueStrikes = truedataStrikeMap[trueKey];
+
+    // Check intersection
+    const match = [...fyersStrikes].some(s => trueStrikes.has(s));
+
+    if (match) {
+      expiryKeyMap[fyersKey] = trueKey;
+      break;
+    }
+  }
+}
+console.log(" calculated expiry fyersStrikeMap /truedataStrikeMap  approach "+JSON.stringify(expiryKeyMap))
+
+
+
+function buildSymbolLookup(total_array_expiries) {
+  const map = new Map();
+
+  Object.values(total_array_expiries).forEach(expiryArray => {
+    if (!Array.isArray(expiryArray)) return;
+
+    expiryArray.forEach(item => {
+      if (item?.symbol) {
+        map.set(item.symbol, item);
+      }
+    });
+  });
+
+  return map;
+}
+function resolveSymbols(symbols, total_array_expiries) {
+  const symbolMap = buildSymbolLookup(total_array_expiries);
+  const result = [];
+
+  for (const sym of symbols) {
+    // Skip index / non-option symbols
+    if (!sym || !sym.startsWith("NIFTY")) continue;
+
+    const match = symbolMap.get(sym);
+    if (match) {
+      result.push(match);
+    }
+  }
+
+  return result;
+}
+
+
+
+//let total_expiry_keyCombinator = [ total_array_expiries.]
 // Start HTTPS server8443
 // 8888 for the fyers.web.in/scalper_terminal 
 let port = 8443;
@@ -426,8 +577,63 @@ function sendDelayedTrades(contracts, index = 0) {
       console.log("\n--- Matching Contracts Found ---");
       console.log(`Total matches: ${matching_contracts.length}`);
       console.log(JSON.stringify(matching_contracts, null, 2));
+       console.log("\n--- Matching Contracts Using new sym.startsWith 'NIFTY' in total_array_expiries ---");
+      const matchedTrades = resolveSymbols(symbolSet, total_array_expiries);
+      let mergeMatchedRecord  = [];
+      if(matching_contracts.length < matchedTrades.length){
+          mergeMatchedRecord = [...matching_contracts , matchedTrades];
 
+      }
+       console.log(`New matching contract after merge :  `);
+       
+      console.log(`Total matches: ${mergeMatchedRecord.length}`);
+      console.log(JSON.stringify(mergeMatchedRecord, null, 2));
+      const requestedSymbols = new Set(
+               request.symbols.filter(s => s.startsWith("NIFTY") && s.includes("CE") || s.includes("PE"))
+            )     ;
+      //Build a symbol → record index from total_array_expiries
+      const fyersSymbolIndex = {};
 
+      Object.values(total_array_expiries).forEach(expiryArr => {
+        expiryArr.forEach(record => {
+          fyersSymbolIndex[record.symbol] = record;
+        });
+      });
+      const matchedFyersRecords = [];
+
+        requestedSymbols.forEach(symbol => {
+          if (fyersSymbolIndex[symbol]) {
+            matchedFyersRecords.push(fyersSymbolIndex[symbol]);
+          }
+        });
+          console.log("\n--- Matching Contracts Using considering request symbol in  'NIFTY25D2325800PE' format : lookup in total_array_expiries ---");
+           let mergeMatchedRecordSimple  = [];
+
+            console.log(`Original matching_contracts Total matches: ${matching_contracts.length}`);
+         if(matching_contracts.length < matchedFyersRecords.length){
+          mergeMatchedRecordSimple = [...matching_contracts , matchedFyersRecords];
+
+         }
+           console.log(`New matching contract after merge :  `);
+           console.log(`Total matches: ${mergeMatchedRecordSimple.length}`);
+           console.log(JSON.stringify(mergeMatchedRecordSimple, null, 2));
+      
+            if(mergeMatchedRecord.length < mergeMatchedRecordSimple.length){
+              if(matching_contracts.length < mergeMatchedRecordSimple.length){ 
+                     matching_contracts = mergeMatchedRecordSimple;
+              }
+              else { 
+                   matching_contracts = matching_contracts;
+              }
+
+         } else { 
+                   if(matching_contracts.length < mergeMatchedRecord.length){ 
+                     matching_contracts = mergeMatchedRecord;
+              }
+              else { 
+                   matching_contracts = matching_contracts;
+              }
+             }
 
         // searach symbols in the generated total_array_expiries_truedata
        
@@ -584,7 +790,196 @@ function sendDelayedTrades(contracts, index = 0) {
     	 { id: "302420032", symbol: "NIFTY25D1626050CE", k: 180 },
     { id: "302420025", symbol: "NIFTY25D1626050PE", k: 40 },
     { id: "302420024", symbol: "NIFTY25D1626100PE", k: 360 },
-     { id: "302420029", symbol: "NIFTY25D1626100CE", k: 60 }
+     { id: "302420029", symbol: "NIFTY25D1626100CE", k: 60 },
+
+    { id: "302430001", symbol: "NIFTY25D2325400CE", k: 12 },
+  { id: "302430002", symbol: "NIFTY25D2325400PE", k: 18 },
+
+  { id: "302430003", symbol: "NIFTY25D2325500CE", k: 22 },
+  { id: "302430004", symbol: "NIFTY25D2325500PE", k: 28 },
+
+  { id: "302430005", symbol: "NIFTY25D2325600CE", k: 35 },
+  { id: "302430006", symbol: "NIFTY25D2325600PE", k: 42 },
+
+  { id: "302430007", symbol: "NIFTY25D2325700CE", k: 48 },
+  { id: "302430008", symbol: "NIFTY25D2325700PE", k: 52 },
+
+  { id: "302430009", symbol: "NIFTY25D2325800CE", k: 55 },
+  { id: "302430010", symbol: "NIFTY25D2325800PE", k: 58 },
+
+  { id: "302430011", symbol: "NIFTY25D2325900CE", k: 60 },
+  { id: "302430012", symbol: "NIFTY25D2325900PE", k: 63 },
+
+  { id: "302430013", symbol: "NIFTY25D2326000CE", k: 65 },
+  { id: "302430014", symbol: "NIFTY25D2326000PE", k: 68 },
+
+  { id: "302430015", symbol: "NIFTY25D2326100CE", k: 70 },
+  { id: "302430016", symbol: "NIFTY25D2326100PE", k: 72 },
+
+  { id: "302430017", symbol: "NIFTY25D2326200CE", k: 75 },
+  { id: "302430018", symbol: "NIFTY25D2326200PE", k: 78 },
+
+  { id: "302430019", symbol: "NIFTY25D2326300CE", k: 82 },
+  { id: "302430020", symbol: "NIFTY25D2326300PE", k: 85 },
+
+  { id: "302430021", symbol: "NIFTY25D2326400CE", k: 90 },
+  { id: "302430022", symbol: "NIFTY25D2326400PE", k: 95 },
+
+    { id: "302440001", symbol: "NIFTY25D3025400CE", k: 12 },
+  { id: "302440002", symbol: "NIFTY25D3025400PE", k: 18 },
+
+  { id: "302440003", symbol: "NIFTY25D3025500CE", k: 22 },
+  { id: "302440004", symbol: "NIFTY25D3025500PE", k: 28 },
+
+  { id: "302440005", symbol: "NIFTY25D3025600CE", k: 35 },
+  { id: "302440006", symbol: "NIFTY25D3025600PE", k: 42 },
+
+  { id: "302440007", symbol: "NIFTY25D3025700CE", k: 48 },
+  { id: "302440008", symbol: "NIFTY25D3025700PE", k: 52 },
+
+  { id: "302440009", symbol: "NIFTY25D3025800CE", k: 55 },
+  { id: "302440010", symbol: "NIFTY25D3025800PE", k: 58 },
+
+  { id: "302440011", symbol: "NIFTY25D3025900CE", k: 60 },
+  { id: "302440012", symbol: "NIFTY25D3025900PE", k: 63 },
+
+  { id: "302440013", symbol: "NIFTY25D3026000CE", k: 65 },
+  { id: "302440014", symbol: "NIFTY25D3026000PE", k: 68 },
+
+  { id: "302440015", symbol: "NIFTY25D3026100CE", k: 70 },
+  { id: "302440016", symbol: "NIFTY25D3026100PE", k: 72 },
+
+  { id: "302440017", symbol: "NIFTY25D3026200CE", k: 75 },
+  { id: "302440018", symbol: "NIFTY25D3026200PE", k: 78 },
+
+  { id: "302440019", symbol: "NIFTY25D3026300CE", k: 82 },
+  { id: "302440020", symbol: "NIFTY25D3026300PE", k: 85 },
+
+  { id: "302440021", symbol: "NIFTY25D3026400CE", k: 90 },
+  { id: "302440022", symbol: "NIFTY25D3026400PE", k: 95 },
+
+   { id: "302449999", symbol: "NIFTY26J0625400CE", k: 12 },
+  { id: "302450000", symbol: "NIFTY26J0625400PE", k: 18 },
+
+     { id: "302450001", symbol: "NIFTY26J0625500CE", k: 13 },
+  { id: "302450002", symbol: "NIFTY26J0625500PE", k: 23 },
+     { id: "302450003", symbol: "NIFTY26J0625600CE", k: 15 },
+  { id: "302450004", symbol: "NIFTY26J0625600PE", k: 21 },
+   { id: "302450005", symbol: "NIFTY26J0625700CE", k: 44 },
+  { id: "302450006", symbol: "NIFTY26J0625700PE", k: 11 },
+
+   { id: "302450007", symbol: "NIFTY26J0625800CE", k: 54 },
+  { id: "302450008", symbol: "NIFTY26J0625800PE", k: 62 },
+
+    { id: "302450009", symbol: "NIFTY26J0625900CE", k: 44 },
+  { id: "302450010", symbol: "NIFTY26J0625900PE", k: 11 },
+
+      { id: "302450011", symbol: "NIFTY26J0626000CE", k: 44 },
+  { id: "302450012", symbol: "NIFTY26J0626000PE", k: 11 },
+  { id: "302450013", symbol: "NIFTY26J0626100CE", k: 44 },
+  { id: "302450014", symbol: "NIFTY26J0626100PE", k: 11 },
+  { id: "302450015", symbol: "NIFTY26J0626200CE", k: 44 },
+  { id: "302450016", symbol: "NIFTY26J0626200PE", k: 11 },
+    { id: "302450017", symbol: "NIFTY26J0626300CE", k: 44 },
+  { id: "302450018", symbol: "NIFTY26J0626300PE", k: 11 },
+
+
+  { id: "302450021", symbol: "NIFTY26J0626400CE", k: 90 },
+  { id: "302450022", symbol: "NIFTY26J0626400PE", k: 95 },
+ // 13 
+ { id: "302459999", symbol: "NIFTY26J1325400CE", k: 12 },
+  { id: "302460000", symbol: "NIFTY26J1325400PE", k: 18 },
+
+    { id: "302460001", symbol: "NIFTY26J1325500CE", k: 13 },
+  { id: "302460002", symbol: "NIFTY26J1325500PE", k: 23 },
+     { id: "302460003", symbol: "NIFTY26J1325600CE", k: 15 },
+  { id: "302460004", symbol: "NIFTY26J1325600PE", k: 21 },
+   { id: "302460005", symbol: "NIFTY26J1325700CE", k: 44 },
+  { id: "302460006", symbol: "NIFTY26J1325700PE", k: 11 },
+
+   { id: "302460007", symbol: "NIFTY26J1325800CE", k: 54 },
+  { id: "302460008", symbol: "NIFTY26J1325800PE", k: 62 },
+
+    { id: "302460009", symbol: "NIFTY26J1325900CE", k: 44 },
+  { id: "302460010", symbol: "NIFTY26J1325900PE", k: 11 },
+
+      { id: "302460011", symbol: "NIFTY26J1326000CE", k: 44 },
+  { id: "302460012", symbol: "NIFTY26J1326000PE", k: 11 },
+  { id: "302460013", symbol: "NIFTY26J1326100CE", k: 44 },
+  { id: "302460014", symbol: "NIFTY26J1326100PE", k: 11 },
+  { id: "302460015", symbol: "NIFTY26J1326200CE", k: 44 },
+  { id: "302460016", symbol: "NIFTY26J1326200PE", k: 11 },
+    { id: "302460017", symbol: "NIFTY26J1326300CE", k: 44 },
+  { id: "302460018", symbol: "NIFTY26J1326300PE", k: 11 },
+
+
+  { id: "302460021", symbol: "NIFTY26J1326400CE", k: 90 },
+  { id: "302460022", symbol: "NIFTY26J1326400PE", k: 95 },
+//20
+    { id: "302469999", symbol: "NIFTY26J2025400CE", k: 12 },
+  { id: "302470000", symbol: "NIFTY26J2025400PE", k: 18 },
+//--
+{ id: "302470001", symbol: "NIFTY26J2025400CE", k: 12 },
+  { id: "302470002", symbol: "NIFTY26J2025400PE", k: 18 },
+
+    { id: "302470001", symbol: "NIFTY26J2025500CE", k: 13 },
+  { id: "302470002", symbol: "NIFTY26J2025500PE", k: 23 },
+     { id: "302470003", symbol: "NIFTY26J2025600CE", k: 15 },
+  { id: "302470004", symbol: "NIFTY26J2025600PE", k: 21 },
+   { id: "302470005", symbol: "NIFTY26J2025700CE", k: 44 },
+  { id: "302470006", symbol: "NIFTY26J2025700PE", k: 11 },
+
+   { id: "302470007", symbol: "NIFTY26J2025800CE", k: 54 },
+  { id: "302470008", symbol: "NIFTY26J2025800PE", k: 62 },
+
+    { id: "302470009", symbol: "NIFTY26J2025900CE", k: 44 },
+  { id: "302470010", symbol: "NIFTY26J2025900PE", k: 11 },
+
+      { id: "302470011", symbol: "NIFTY26J2026000CE", k: 44 },
+  { id: "302470012", symbol: "NIFTY26J2026000PE", k: 11 },
+  { id: "302470013", symbol: "NIFTY26J2026100CE", k: 44 },
+  { id: "302470014", symbol: "NIFTY26J2026100PE", k: 11 },
+  { id: "302470015", symbol: "NIFTY26J2026200CE", k: 44 },
+  { id: "302470016", symbol: "NIFTY26J2026200PE", k: 11 },
+    { id: "302470017", symbol: "NIFTY26J2026300CE", k: 44 },
+  { id: "302470018", symbol: "NIFTY26J2026300PE", k: 11 },
+//--
+  { id: "302470021", symbol: "NIFTY26J2026400CE", k: 90 },
+  { id: "302470022", symbol: "NIFTY26J2026400PE", k: 95 },
+
+  //30
+      { id: "302479999", symbol: "NIFTY26J2725400CE", k: 12 },
+  { id: "302480000", symbol: "NIFTY26J2725400PE", k: 18 },
+
+{ id: "302480001", symbol: "NIFTY26J2725400CE", k: 12 },
+  { id: "302480002", symbol: "NIFTY26J2725400PE", k: 18 },
+
+    { id: "302480001", symbol: "NIFTY26J2725500CE", k: 13 },
+  { id: "302480002", symbol: "NIFTY26J2725500PE", k: 23 },
+     { id: "302480003", symbol: "NIFTY26J2725600CE", k: 15 },
+  { id: "302480004", symbol: "NIFTY26J2725600PE", k: 21 },
+   { id: "302480005", symbol: "NIFTY26J2725700CE", k: 44 },
+  { id: "302480006", symbol: "NIFTY26J2725700PE", k: 11 },
+
+   { id: "302480007", symbol: "NIFTY26J2725800CE", k: 54 },
+  { id: "302480008", symbol: "NIFTY26J2725800PE", k: 62 },
+
+    { id: "302480009", symbol: "NIFTY26J2725900CE", k: 44 },
+  { id: "302480010", symbol: "NIFTY26J2725900PE", k: 11 },
+
+      { id: "302480011", symbol: "NIFTY26J2726000CE", k: 44 },
+  { id: "302480012", symbol: "NIFTY26J2726000PE", k: 11 },
+  { id: "302480013", symbol: "NIFTY26J2726100CE", k: 44 },
+  { id: "302480014", symbol: "NIFTY26J2726100PE", k: 11 },
+  { id: "302480015", symbol: "NIFTY26J2726200CE", k: 44 },
+  { id: "302480016", symbol: "NIFTY26J2726200PE", k: 11 },
+    { id: "302480017", symbol: "NIFTY26J2726300CE", k: 44 },
+  { id: "302480018", symbol: "NIFTY26J2726300PE", k: 11 },
+
+
+  { id: "302480021", symbol: "NIFTY26J2726400CE", k: 90 },
+  { id: "302480022", symbol: "NIFTY26J2726400PE", k: 95 },
+    
   ];
  
 
@@ -676,6 +1071,38 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`✅ WebSocket endpoint: wss://<your-app>.onrender.com`);
 });
+const expiries = [
+  { code: "D16", label: "DEC16" },
+  { code: "D23", label: "DEC23" },
+  { code: "D30", label: "DEC30" },
+  { code: "J06", label: "JAN06" },
+  { code: "J13", label: "JAN13" },
+  { code: "J20", label: "JAN20" },
+  { code: "J27", label: "JAN27" },
+];
+
+const strikes = Array.from({ length: 11 }, (_, i) => 25400 + i * 100);
+
+const OPTION_CHAIN = expiries.flatMap(exp =>
+  strikes.flatMap(strike => ([
+    {
+      id: `${exp.label}_${strike}_CE`,
+      symbol: `NIFTY25${exp.code}${strike}CE`,
+      k: 180,
+      type: "CE",
+      strike,
+      expiry: exp.label
+    },
+    {
+      id: `${exp.label}_${strike}_PE`,
+      symbol: `NIFTY25${exp.code}${strike}PE`,
+      k: 40,
+      type: "PE",
+      strike,
+      expiry: exp.label
+    }
+  ]))
+);
 
 /*
 // Start HTTPS server
