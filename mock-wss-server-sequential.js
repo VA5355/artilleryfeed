@@ -39,11 +39,37 @@ function getTuesdaysOfMonth(year, monthIndex) {
 
   // Collect all Tuesdays in that month
   while (date.getMonth() === monthIndex) {
-    tuesdays.push(new Date(date));
+    //skip expired tuesday from current date 
+    let isFUTURE =  isAfterToday(date)
+    if(isFUTURE){
+    tuesdays.push(new Date(date)); }
     date.setDate(date.getDate() + 7);
   }
 
   return tuesdays;
+}
+function normalizeDate(date) {
+  if (!(date instanceof Date) || isNaN(date)) {
+    throw new Error("Invalid Date object");
+  }
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isAfterToday(dateObj) {
+  return normalizeDate(dateObj) > normalizeDate(new Date());
+}
+function compareWithToday(dateStr) {
+  if (!dateStr) throw new Error("Date string is required");
+
+  const inputDate = new Date(dateStr + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (inputDate < today) return  false;  //"PAST";
+  if (inputDate > today) return  true; //"FUTURE";
+  return true;
 }
 
 // Map month index → single-letter code
@@ -104,9 +130,19 @@ function formatTuesday(date) {
 const now = new Date();
 const currentYear = now.getFullYear();
 const currentMonthIndex = now.getMonth(); // 0 = Jan, 9 = Oct
+const isLastMonthofYear = currentMonthIndex ==11 ?  true : false; 
+const caculateTuesdayOfNextMonth = (isLastMonthofYear) => { 
+        if(isLastMonthofYear) {
+
+          let tuesdayOfFisrtMonthNextYear=       getTuesdaysOfMonth(currentYear+1, currentMonthIndex -11);
+          return tuesdayOfFisrtMonthNextYear; 
+        }
+}
 
 // Example: First Tuesday of October 2025
-const tuesdays = getTuesdaysOfMonth(currentYear, currentMonthIndex); // 9 = October
+let tuesdays = getTuesdaysOfMonth(currentYear, currentMonthIndex); // 9 = October
+   tuesdays = tuesdays.concat(caculateTuesdayOfNextMonth(isLastMonthofYear));
+
 console.log("All Tuesdays:", tuesdays.map(formatTuesday));
 console.log("First Tuesday of October 2025:", formatTuesday(tuesdays[0]));
  // === 4. Trade generator ===
