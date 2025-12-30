@@ -16,16 +16,16 @@ app.get("/", (req, res) => {
   res.send("WebSocket server is up ✅");
 });
 
-
+const startOfMonth = new Date();
 // Create HTTP server
 const server = http.createServer(app);
 // Load self-signed certificate
 /*const server = https.createServer({
   cert: fs.readFileSync("./ssl.crt/server.crt"),
   key: fs.readFileSync("./ssl.key/server.key")
-});
-*/
-function getTuesdaysOfMonth(year, monthIndex) {
+});*/
+
+function getTuesdaysOfMonth(year, monthIndex , day) {
   // monthIndex: 0 = January, 9 = October
   const tuesdays = [];
 
@@ -42,7 +42,9 @@ function getTuesdaysOfMonth(year, monthIndex) {
     //skip expired tuesday from current date 
     let isFUTURE =  isAfterToday(date)
     if(isFUTURE){
-    tuesdays.push(new Date(date)); }
+        if (date.getDay() >= day || date.getDate() >= 30 ){
+           console.log("Adding tuesday "+ day+ " being aded "+date.toString());
+    tuesdays.push(new Date(date)); } }
     date.setDate(date.getDate() + 7);
   }
 
@@ -58,6 +60,16 @@ function normalizeDate(date) {
 }
 
 function isAfterToday(dateObj) {
+        let righNow =startOfMonth;
+        if(dateObj.getDate() >= righNow.getDate() && dateObj.getMonth() === righNow.getMonth() && dateObj.getFullYear() === righNow.getFullYear() ) {
+          console.log( `current date  ${righNow.getDate()} ${righNow.getMonth()} ${righNow.getFullYear()}`)
+          console.log( `compared  date ${dateObj.getDate()} ${dateObj.getMonth() } ${dateObj.getFullYear()}`)
+           return true;
+        }
+        else{ 
+
+
+        }
   return normalizeDate(dateObj) > normalizeDate(new Date());
 }
 function compareWithToday(dateStr) {
@@ -130,17 +142,28 @@ function formatTuesday(date) {
 const now = new Date();
 const currentYear = now.getFullYear();
 const currentMonthIndex = now.getMonth(); // 0 = Jan, 9 = Oct
+const currentMonthDay = now.getDate();    // 1–31
+
+console.log(
+  `Today is ${currentMonthDay}/${currentMonthIndex + 1}/${currentYear}`
+);
+console.log(" current month current day "+currentMonthDay+" current month "+currentMonthIndex+" current year  "+currentYear);
+console.log(" current month current day "+currentMonthDay+" current month "+currentMonthIndex+" current year  "+currentYear);
+console.log(" current month current day "+currentMonthDay+" current month "+currentMonthIndex+" current year  "+currentYear);
+console.log(" current month current day "+currentMonthDay+" current month "+currentMonthIndex+" current year  "+currentYear);
+
+
 const isLastMonthofYear = currentMonthIndex ==11 ?  true : false; 
 const caculateTuesdayOfNextMonth = (isLastMonthofYear) => { 
         if(isLastMonthofYear) {
 
-          let tuesdayOfFisrtMonthNextYear=       getTuesdaysOfMonth(currentYear+1, currentMonthIndex -11);
+          let tuesdayOfFisrtMonthNextYear=       getTuesdaysOfMonth(currentYear+1, currentMonthIndex -11, 2);
           return tuesdayOfFisrtMonthNextYear; 
         }
 }
 
 // Example: First Tuesday of October 2025
-let tuesdays = getTuesdaysOfMonth(currentYear, currentMonthIndex); // 9 = October
+let tuesdays = getTuesdaysOfMonth(currentYear, currentMonthIndex, currentMonthDay); // 9 = October
    tuesdays = tuesdays.concat(caculateTuesdayOfNextMonth(isLastMonthofYear));
 
 console.log("All Tuesdays:", tuesdays.map(formatTuesday));
