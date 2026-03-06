@@ -7,8 +7,8 @@ import { WebSocket } from "ws";
 import http from "http";
 import { WebSocketServer } from "ws";
 import express from "express";
-
-
+import {loadSymbols , search  } from './csvworker-processor-new.mjs';
+let  totalSymbols = [];
 const app = express();
 
 // normal REST route (Render needs this for health check)
@@ -42,12 +42,14 @@ function getTuesdaysOfMonth(year, monthIndex , day) {
     //skip expired tuesday from current date 
     let isFUTURE =  isAfterToday(date)
     if(isFUTURE){
-        if (date.getDay() >= day || date.getDate() >= 30 ){
+       console.log(" furture day "+date.toString());
+     //   if (date.getDay() >= day || date.getDate() >= 30 ){
+        if (date.getDay() >= day || date.getDate() >= startOfMonth.getDate() ){
            console.log("Adding tuesday "+ day+ " being aded "+date.toString());
     tuesdays.push(new Date(date)); } }
     date.setDate(date.getDate() + 7);
   }
-
+  console.log("getTuesdays before return "+JSON.stringify(tuesdays));
   return tuesdays;
 }
 function normalizeDate(date) {
@@ -86,12 +88,84 @@ function compareWithToday(dateStr) {
 
 // Map month index → single-letter code
 const monthCodes = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+const monthCodesNew = { Jan:1, 
+  Feb: 2,
+  Mar: 3,
+  Apr: 4,
+  May: 5,
+  Jun: 6,
+  Jul: 7,
+  Aug: 8,
+  Sep: 9,
+  Oct: "O", // Letter O
+  Nov: "N",
+  Dec: "D"
+};
+const monthCodesNewMap = new Map([ ["Jan", 1],
+  ["Feb", 2],
+  ["Mar", 3],
+  ["Apr", 4],
+  ["May", 5],
+  ["Jun", 6],
+  ["Jul", 7],
+  ["Aug", 8],
+  ["Sep", 9],
+  ["Oct", "O"],
+  ["Nov", "N"],
+  ["Dec", "D"]
+]);
+const valueToMonthMap = new Map([
+   [0, "1"],[1, "2"],
+  [2, "3"],
+  [3, "4"],
+  [4, "5"],
+  [5, "6"],
+  [6, "7"],
+  [7, "8"],
+  [8, "9"],
+     
+  [9, "O"],
+  [10, "N"],
+  [11, "D"],
+  	    
+  ["O", "Oct"],
+  ["N", "Nov"],
+  ["D", "Dec"]
+]);
 // Proper month codes
 const monthProperCodes = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
 ];
  const baseGlobalStrike = 25600;
+
+
+/**
+ * Robust date formatter to convert long date strings to YYMMDD
+ * @param {Date|string} dateInput 
+ * @returns {string} Formatted date as YYMMDD
+ */
+const formatToYYMMDD = (dateInput) => {
+  try {
+    const d = new Date(dateInput);
+    
+    // Check for invalid date
+    if (isNaN(d.getTime())) return "Invalid";
+
+    const year = d.getFullYear().toString().slice(-2); // Get last 2 digits
+   //const month = (d.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed this is TRUE DATA 
+    const month = monthCodes[d.getMonth()];         // 3-letter month// Months are 0-indexed this is TRUE DATA 
+    //const month =  valueToMonthMap.get(d.getMonth());
+    console.log("formatToYYMMDD ",month);
+    const day = d.getDate().toString().padStart(2, '0');
+
+    return `${year}${month}${day}`;
+  } catch (error) {
+    return "Error";
+  }
+};
+
+
 /**
  * Generate short expiry code from a Date
  * Example: Date(2025-10-07) → "25OCT07"
@@ -100,12 +174,16 @@ function getShortYYMMDD(dateInput) {
 
  const date = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
 
-  if (isNaN(date)) {
-    throw new Error(`Invalid date: ${dateInput}`);
+  if ( !(date instanceof Date) ||  !isNaN(date.getTime())) {
+    // throw new Error(`Invalid date: ${dateInput} `);
+         console.log("getShortYYMMDD found invalid date " , dateInput); 
+           return 
   }
 
   const yy = String(date.getFullYear()).slice(-2);   // last 2 digits of year
-  const mCode = monthCodes[date.getMonth()];         // 3-letter month
+  //const mCode = monthCodes[date.getMonth()];         // 3-letter month
+    const mCode =  valueToMonthMap.get(date.getMonth());         // 3-letter month
+     console.log("getShortYYMMDD ",mCode);
   const dd = String(date.getDate()).padStart(2, "0"); // 2-digit day
   return `${yy}${mCode}${dd}`;
 }
@@ -116,25 +194,52 @@ function getShortYYMMDD(dateInput) {
  */
 function getShortYYMMDDDigits(dateInput) {
 
- const date = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
+ const date = dateInput !== undefined && (dateInput instanceof Date) ? dateInput : new Date(dateInput);
 
-  if (isNaN(date)) {
-    throw new Error(`Invalid date: ${dateInput}`);
+  /*if (!(date instanceof Date) || !isNaN(date.getTime())) {
+    //throw new Error(`Invalid date: ${dateInput}`);
+         console.log("getShortYYMMDDDigits found invalid date " , dateInput); 
+      return ; 
   }
 
   const yy = String(date.getFullYear()).slice(-2);   // last 2 digits of year
   const mCode =  date.getMonth()+1 < 10 ?   `0` + date.getMonth()+1 :  date.getMonth()+1 ;         // 3-letter month
   const dd = String(date.getDate()).padStart(2, "0"); // 2-digit day
-  return `${yy}${mCode}${dd}`;
+  return `${yy}${mCode}${dd}`;*/
+
+   try { 
+    const d = new Date(dateInput);
+          // Check for invalid date
+    if (isNaN(d.getTime())) return "Invalid";
+
+    const year = d.getFullYear().toString().slice(-2); // Get last 2 digits
+    const month = (d.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed
+    const day = d.getDate().toString().padStart(2, '0');
+
+    return `${year}${month}${day}`;
+
+   } 
+   catch(er){
+        return `380105`; /// future date 
+    }
+
+
+
+
 }
 
 
 
 
 function formatTuesday(date) {
-  const yy = String(date.getFullYear()).slice(-2);
-  const mCode = monthCodes[date.getMonth()];
-  const dd = String(date.getDate()).padStart(2, "0");
+const datein = date !==undefined && (date instanceof Date) ? new Date(date) : "";
+  if(datein ===""){
+     console.log("format failed provide a proper date ");
+     return;
+   }
+  const yy = String(datein.getFullYear()).slice(-2);
+  const mCode = monthCodes[datein.getMonth()];
+  const dd = String(datein.getDate()).padStart(2, "0");
   return `${yy}${mCode}${dd}`;
 }
 
@@ -167,7 +272,10 @@ let tuesdays = getTuesdaysOfMonth(currentYear, currentMonthIndex, currentMonthDa
    tuesdays = tuesdays.concat(caculateTuesdayOfNextMonth(isLastMonthofYear));
 
 console.log("All Tuesdays:", tuesdays.map(formatTuesday));
-console.log("First Tuesday of October 2025:", formatTuesday(tuesdays[0]));
+tuesdays = tuesdays.filter(td => td !==undefined );
+console.log("All Tuesdays refined :", tuesdays.map(formatTuesday));
+let usualOneMonthLetterTuesdays = tuesdays.map(formatTuesday)
+//console.log("First Tuesday of October 2025:", formatTuesday(tuesdays[0]));
  // === 4. Trade generator ===
   function generateTrade(id, k_const) {
     return [
@@ -207,7 +315,7 @@ function random9Digit() {
  */
 function generateTrades(
   expiries,
-  baseStrike = 25600, //26100,      // this needs to be categorised as configuration object or setting , others are at line 285 1276 
+  baseStrike = 24600, //26100,      // this needs to be categorised as configuration object or setting , others are at line 285 1276 
   steps = 7,   // this is for 7 strike prices lsiting 
   stepSize = 100,
   weeklyInterestRate = 15
@@ -304,10 +412,11 @@ function generateTuesdayTrades(
   return result;
 }
  const current_month_expiries = tuesdays;
+console.log("Current month expiries " + current_month_expiries);
  // Map raw dates → { date, shortKey }
 const expiryObjects = current_month_expiries.map(d => ({
   date: d,
-  shortKey: getShortYYMMDD(d)
+  shortKey: formatToYYMMDD(d)
 }));
 const tuesdayObjects = current_month_expiries.map((d, indx) => ({
   date: getShortYYMMDDDigits(d),
@@ -318,7 +427,17 @@ expiryObjects.forEach( t => {
   console.log(`: ---------- date: ${t["date"]} shortKey: ${t["shortKey"]} `);
 })
 
-console.log(`: ---------- structure : ${JSON.stringify(expiryObjects)}   `);
+console.log(`: ----------expiryObjects structure : ${JSON.stringify(expiryObjects)}   `);
+console.log(`: ---------- tuesdayObjects structure : ${JSON.stringify(tuesdayObjects)}   `);
+let mapperUsualwithActual = new Map();
+usualOneMonthLetterTuesdays.forEach( (ts, inx) => { 
+            let fyersUsual = ts; 
+            let properFyers = tuesdayObjects[inx].date;
+           if (properFyers) {
+             mapperUsualwithActual.set(ts, properFyers);
+           }
+} );
+
 current_month_nifty_expiries = generateTrades(expiryObjects);
 current_month_nifty_expiries_truedata = generateTuesdayTrades(tuesdayObjects);
 console.log(`current_month_nifty_expiries: ----------`);
@@ -356,7 +475,35 @@ function extractExpiryStrikeMap(dataEntries, isFyers) {
 
   return map;
 }
-const fyersStrikeMap = extractExpiryStrikeMap(
+function extractExpiryStrikeMapNew(dataEntries, isFyers) {
+  const map = {};
+
+  for (const [expiryKey, rows] of dataEntries) {
+    const strikes = new Set();
+
+    for (const row of rows) {
+      if (!row.symbol.startsWith("NIFTY")) continue;
+      if (!row.symbol.includes("CE") && !row.symbol.includes("PE")) continue;
+       let kq , kl = "";
+      // Extract strike
+      const strike = (isFyers ? ( kq = row.symbol.match(/NIFTY\d{2}D\d{2}(\d{5})/) ? row.symbol.match(/NIFTY\d{2}D\d{2}(\d{5})/)[1] : "" ) : 
+        ( kl = row.symbol.match(/NIFTY\d{6}(\d{5})/) ? row.symbol.match(/NIFTY\d{6}(\d{5})/)[1] : ""));
+
+      if (strike) strikes.add(strike);
+    }
+
+    if (strikes.size) {
+      map[expiryKey] = strikes;
+    }
+  }
+
+  return map;
+}
+const fyersStrikeMapOld = extractExpiryStrikeMap(
+  total_array_expiries,
+  true
+);
+const fyersStrikeMap = extractExpiryStrikeMapNew(
   total_array_expiries,
   true
 );
@@ -369,7 +516,7 @@ const truedataStrikeMap = extractExpiryStrikeMap(
 
 
 
-const extractExpiryFromSymbol = (symbol) => {
+const extractExpiryFromSymbolOld = (symbol) => {
   // FYERS: NIFTY25D0225600CE → 25D02
   const fyersMatch = symbol.match(/NIFTY(\d{2}D\d{2})/);
   if (fyersMatch) return fyersMatch[1];
@@ -380,22 +527,63 @@ const extractExpiryFromSymbol = (symbol) => {
 
   return null;
 };
+const extractExpiryFromSymbol = (symbol) => {
+  // FYERS: NIFTY25D0225600CE → 25D02
+ let fyersMatch = symbol.match(/NIFTY(\d{5})/);
+   if (! symbol.startsWith("NIFTY")) { 
+      if (! symbol.includes("CE") && ! symbol.includes("PE"))  { 
+       let kq , kl = "";
+      // Extract strike
+      
+      const strike =  ( kq =  symbol.match(/(NIFTY\d{10})/) ?  symbol.match(/(NIFTY\d{10})/)[1] : "" ) // : 
+      //  ( kl = symbol.match(/NIFTY\d{6}(\d{5})/) ?  symbol.match(/NIFTY\d{6}(\d{5})/)[1] : ""));
+        console.log('symbol  ' + symbol + 'fyers strike ', strike)
+       fyersMatch = strike ;
+         console.log('fyers match ', fyersMatch); 
+          return fyersMatch ;
+      }
+   }
+  if (fyersMatch) {    console.log('fyers extract ', fyersMatch); // "26106"
+    return fyersMatch[1]   } ;
+
+  // TrueData: NIFTY25120225600CE → 251202
+  const truedataMatch = symbol.match(/NIFTY(\d{6})/);
+  if (truedataMatch)  {    console.log('truedata extract ', truedataMatch); // "26106"
+    return truedataMatch[1] } ;
+
+  return null;
+};
+
+const extractExpiryFromSymbolTrue = (symbol) => {
+ 
+  
+
+  // TrueData: NIFTY25120225600CE → 251202
+  const truedataMatch = symbol.match(/NIFTY(\d{6})/);
+  if (truedataMatch)  {    console.log('truedata extract ', truedataMatch); // "26106"
+    return truedataMatch[1] } ;
+
+  return null;
+};
+
 
 let expiryKeyMap = {};
 
 Object.entries(total_array_expiries).forEach(([fyersKey, fyersArr]) => {
   if (!fyersArr?.length) return;
 
-  const fyersSymbol = fyersArr[0].symbol;
-  const fyersExpiry = extractExpiryFromSymbol(fyersSymbol ? fyersSymbol : "");
+  const fyersSymbol = fyersArr[1] [0];
+   console.log(" fyersSymbol[`symbol`] ", JSON.stringify(fyersSymbol["symbol"]));
+  const fyersExpiry = extractExpiryFromSymbol(fyersSymbol["symbol"] ? fyersSymbol["symbol"] : "");
+  console.log(" fyersExpiry ", JSON.stringify(fyersExpiry));
 
   Object.entries(total_array_expiries_truedata).forEach(
     ([trueKey, trueArr]) => {
       if (!trueArr?.length) return;
 
-      const trueSymbol = trueArr[0].symbol;
-      const trueExpiry = extractExpiryFromSymbol(trueSymbol ? trueSymbol : "" );
-
+      const trueSymbol = trueArr[1] [0]; //.symbol;
+      const trueExpiry = extractExpiryFromSymbolTrue(trueSymbol["symbol"] ? trueSymbol["symbol"] : "" );
+       console.log(" trueExpiry ", JSON.stringify(trueExpiry));
       if (fyersExpiry && trueExpiry) {
         // Match by calendar logic: YYMMDD vs YYDdd
         // Example: 25D02 ↔ 251202
@@ -406,7 +594,8 @@ Object.entries(total_array_expiries).forEach(([fyersKey, fyersArr]) => {
     }
   );
 });
-console.log(" Using Regex fetched the keys from true_array_expiries and true_array_expiries_truedata  : symbol.match(/NIFTY(\d{2}D\d{2})/)  FYERS: NIFTY25D0225600CE → 25D02 and /NIFTY(\d{6})/ TrueData: NIFTY25120225600CE → 251202 ");
+//console.log(" Using Regex fetched the keys from true_array_expiries and true_array_expiries_truedata  : symbol.match(/NIFTY(\d{2}D\d{2})/)  FYERS: NIFTY25D0225600CE → 25D02 and /NIFTY(\d{6})/ TrueData: NIFTY25120225600CE → 251202 ");
+console.log(" Using Regex fetched the keys from true_array_expiries and true_array_expiries_truedata  : symbol.match(/NIFTY(\d{5})/)  FYERS: NIFTY26J0625600CE → 26106  NIFTY25D0225600CE → 25D02 and /NIFTY(\d{6})/ TrueData: NIFTY25120225600CE → 251202 ");
 let expiryKeyMapRegex = Object.assign( {} , expiryKeyMap) ;
 console.log(" calculated expiry "+JSON.stringify(expiryKeyMap))
 console.log(" Using just key matching and endwith (fyersExpiry.slice(-2) no regex most safe approach ")
@@ -446,6 +635,35 @@ for (const fyersKey in fyersStrikeMap) {
 }
 console.log(" calculated expiry fyersStrikeMap /truedataStrikeMap  approach "+JSON.stringify(expiryKeyMap))
 
+async function runFNO() {
+  try {
+    console.log("Fetching Symbols FNO data...");
+    // Await the result of the async function
+    const data = await loadSymbols();
+    totalSymbols = data;
+    console.log("Received: total "+data.length +" Symbols from Fyers ");
+  } catch (error) {
+    console.error("Error fetching data:", error);
+  }
+}
+console.log(" INITIALISING  for FNO symbols available " );
+    (async () => { 
+      
+           await  runFNO();
+           let tx = "SENSEX 12 Mar";
+            console.log("Searching for ", tx, "  in", totalSymbols.length, "...");
+            const test =  await search("SENSEX 12 Mar" , totalSymbols);
+           console.log("Search test results:", test.length, "found in", test.time, "ms");
+           if(Array.isArray(test.results)){
+             test.results.forEach((sr) => { 
+                console.log("record --> ",  JSON.stringify(sr));
+
+             });
+           }
+
+    })();
+ 
+    
 
 
 function buildSymbolLookup(total_array_expiries) {
@@ -507,7 +725,7 @@ wss.on("connection", (ws) => {
    ws.aslongSubscribedInterval = null; // to track interval
    let initialtrade =[]; let idSym = []; 
 const DELAY_BETWEEN_TRADES_MS = 30; // 30 mili seconds delay between individual ws.send() calls
-const CYCLE_INTERVAL_MS = 9000;     // The original 17 seconds cycle
+const CYCLE_INTERVAL_MS = 15000; //   9000;     // The original 17 seconds cycle
 
   const symbols_const = [
    /* { symbol: "NIFTY25093025300CE", id: "302418032",  },
