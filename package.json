@@ -19,6 +19,7 @@
   "dependencies": {
     "express": "^5.1.0",
     "https": "^1.0.0",
+    "node-fetch": "^3.3.2",
     "ws": "^8.18.3"
   }
 }
